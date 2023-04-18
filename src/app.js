@@ -1,43 +1,46 @@
-import http from 'http';
-import express from 'express';
-import cors from 'cors';
-import io from 'socket.io';
-import config from '../config/config.json';
-import path from 'path';
-
-// setup server
-const app = express();
-const server = http.createServer(app);
-
-const socketIo = io(server);
-
-// Allow CORS
-app.use(cors());
-
-// Render a API index page
-app.get('/', (req, res) => {
-  res.sendFile(path.resolve('public/index.html'));
+const express = require("express")
+const app = express()
+const cors = require("cors")
+const http = require('http').Server(app);
+const PORT = 4008
+const socketIO = require('socket.io')(http, {
+    cors: {
+        origins: ["http://localhost:3000", "http://localhost:3456"]
+    }
 });
 
-// Start listening
-server.listen(process.env.PORT || config.port);
-console.log(`Started on port ${config.port}`);
+app.use(cors())
+let users = []
 
-// Setup socket.io
-socketIo.on('connection', socket => {
-  const username = socket.handshake.query.username;
-  console.log(`${username} connected`);
+socketIO.on('connection', (socket) => {
+    console.log(`⚡: ${socket.id} user just connected!`)
+    socket.on("client:message", data => {
+        socketIO.emit("server:message", data)
+    })
 
-  socket.on('client:message', data => {
-    console.log(`${data.username}: ${data.message}`);
+    socket.on("client:typing", data => (
+        socket.broadcast.emit("server:typing", data)
+    ))
 
-    // message received from client, now broadcast it to everyone else
-    socket.broadcast.emit('server:message', data);
-  });
+    socket.on("client:newUser", data => {
+        console.log(data);
+        users.push(data)
+        socketIO.emit("server:newUser", users)
+    })
 
-  socket.on('disconnect', () => {
-    console.log(`${username} disconnected`);
-  });
+    socket.on('disconnect', () => {
+        console.log(`${socket.id} user disconnected`);
+        users = users.filter(user => user.socketId !== socket.id)
+        socketIO.emit("server:newUser", users)
+        socket.disconnect()
+    });
 });
 
-export default app;
+app.get("/api", (req, res) => {
+    res.json({message: "Hello"})
+});
+
+
+http.listen(PORT, () => {
+    console.log(`Server listening on ${PORT}`);
+});
