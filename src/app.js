@@ -1,16 +1,33 @@
-const express = require("express")
-const app = express()
-const cors = require("cors")
+require('dotenv').config();
+
+const routes = require('./routes/routes');
+const express = require("express");
+const app = express();
+const cors = require("cors");
+const mongoose = require('mongoose');
 const http = require('http').Server(app);
-const PORT = 4008
+
 const socketIO = require('socket.io')(http, {
     cors: {
         origins: ["http://localhost:3000", "http://localhost:3456"]
     }
 });
 
-app.use(cors())
-let users = []
+const PORT = process.env.API_PORT;
+const mongoString = process.env.DATABASE_URL;
+mongoose.connect(mongoString);
+const database = mongoose.connection;
+
+database.on('error', (error) => {
+    console.log(error)
+})
+
+database.once('connected', () => {
+    console.log('Database Connected');
+})
+
+app.use(cors());
+let users = [];
 
 socketIO.on('connection', (socket) => {
     console.log(`⚡: ${socket.id} user just connected!`)
@@ -35,6 +52,10 @@ socketIO.on('connection', (socket) => {
         socket.disconnect()
     });
 });
+
+app.use(express.json());
+
+app.use('/api', routes);
 
 app.get("/api", (req, res) => {
     res.json({message: "Hello"})
